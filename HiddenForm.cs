@@ -31,7 +31,8 @@ namespace HddActivity
         private Icon idleIcon;
         private HddState previousHddState;
 
-        Thread hddActivityThread;
+        private Thread hddActivityThread;
+        private bool exitRequested;
         #endregion
 
         #region Initialization Methods
@@ -77,6 +78,7 @@ namespace HddActivity
         //Assigns thread activity and starts the thread.
         private void setUpThread()
         {
+            exitRequested = false;
             hddActivityThread = new Thread(new ThreadStart(hddThreadActivity));
             hddActivityThread.Start();
         }
@@ -90,7 +92,9 @@ namespace HddActivity
         
         private void exitItem_Click(object sender, EventArgs e)
         {
-            hddActivityThread.Abort();
+            exitRequested = true;
+            // Wait for HDD activity thread to exit, with a timeout
+            hddActivityThread.Join(TimeSpan.FromSeconds(1));
             hddTrayIcon.Dispose();
             this.Close();
         }
@@ -139,8 +143,16 @@ namespace HddActivity
                             }
                         }
                     }
-                    //Sleep for 10th of a second
-                    Thread.Sleep(100);
+
+                    if (exitRequested)
+                    {
+                        return;
+                    }
+                    else
+                    {
+                        //Sleep for 10th of a second
+                        Thread.Sleep(100);
+                    }
                 }
             }
         }
