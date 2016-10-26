@@ -69,7 +69,7 @@ namespace HddActivity
             MenuItem exitItem = new MenuItem("Exit");
 
             //Assigns an on click event handler to the menu item "Exit
-            exitItem.Click += exitItem_Click;     
+            exitItem.Click += exitItem_Click;
 
             contextMenu.MenuItems.Add(exitItem);
             hddTrayIcon.ContextMenu = contextMenu;
@@ -89,7 +89,7 @@ namespace HddActivity
          * Disposes the resources and closes the applicaton
          * when "Exit" button ,in the context menu, is clicked.
         */
-        
+
         private void exitItem_Click(object sender, EventArgs e)
         {
             exitRequested = true;
