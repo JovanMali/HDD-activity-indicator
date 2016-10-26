@@ -16,7 +16,12 @@ using System.Threading;
 
 namespace HddActivity
 {
-  
+    internal enum HddState
+    {
+        Busy,
+        Idle
+    }
+
     public partial class HiddenForm : Form
     {
         #region Variables
@@ -24,6 +29,7 @@ namespace HddActivity
 
         private Icon busyIcon;
         private Icon idleIcon;
+        private HddState previousHddState;
 
         Thread hddActivityThread;
         #endregion
@@ -41,6 +47,7 @@ namespace HddActivity
             //Assinging default idleIcon to the tray icon and making it visible.
             hddTrayIcon.Icon = idleIcon;
             hddTrayIcon.Visible = true;
+            previousHddState = HddState.Idle;
         }
 
         private void hideForm()
@@ -92,8 +99,7 @@ namespace HddActivity
         #region Activity Threads
         private void hddThreadActivity()
         {
-            ManagementClass physicalDriveData = new ManagementClass("Win32_PerfFormattedData_PerfDisk_PhysicalDisk");
-            try
+            using (ManagementClass physicalDriveData = new ManagementClass("Win32_PerfFormattedData_PerfDisk_PhysicalDisk"))
             {
                 //Using WMI to get physical disk activity per second.
                 while (true)
@@ -113,26 +119,29 @@ namespace HddActivity
                             //Getting the DiskBytesPersec property
                             //unsigned 64bit intenger,return value needs to be converted.
 
-                           if (Convert.ToUInt64(obj["DIskBytesPersec"]) > 0)
+                            if (Convert.ToUInt64(obj["DIskBytesPersec"]) > 0)
                             {
-                               //Show busy icon.
-                                hddTrayIcon.Icon = busyIcon;
+                                if (previousHddState == HddState.Idle)
+                                {
+                                    //Show busy icon.
+                                    hddTrayIcon.Icon = busyIcon;
+                                }
+                                previousHddState = HddState.Busy;
                             }
                             else
                             {
-                               //Show idle icon.
-                                hddTrayIcon.Icon = idleIcon;
+                                if (previousHddState == HddState.Busy)
+                                {
+                                    //Show idle icon.
+                                    hddTrayIcon.Icon = idleIcon;
+                                }
+                                previousHddState = HddState.Idle;
                             }
                         }
                     }
                     //Sleep for 10th of a second
                     Thread.Sleep(100);
                 }
-            }
-            catch (ThreadAbortException tae)  
-            {
-                //Thread aborted
-                physicalDriveData.Dispose();
             }
         }
         #endregion
