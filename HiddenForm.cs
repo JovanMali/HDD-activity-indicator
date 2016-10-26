@@ -16,7 +16,12 @@ using System.Threading;
 
 namespace HddActivity
 {
-  
+    internal enum HddState
+    {
+        Busy,
+        Idle
+    }
+
     public partial class HiddenForm : Form
     {
         #region Variables
@@ -24,8 +29,10 @@ namespace HddActivity
 
         private Icon busyIcon;
         private Icon idleIcon;
+        private HddState previousHddState;
 
-        Thread hddActivityThread;
+        private Thread hddActivityThread;
+        private bool exitRequested;
         #endregion
 
         #region Initialization Methods
@@ -41,6 +48,7 @@ namespace HddActivity
             //Assinging default idleIcon to the tray icon and making it visible.
             hddTrayIcon.Icon = idleIcon;
             hddTrayIcon.Visible = true;
+            previousHddState = HddState.Idle;
         }
 
         private void hideForm()
@@ -61,7 +69,7 @@ namespace HddActivity
             MenuItem exitItem = new MenuItem("Exit");
 
             //Assigns an on click event handler to the menu item "Exit
-            exitItem.Click += exitItem_Click;     
+            exitItem.Click += exitItem_Click;
 
             contextMenu.MenuItems.Add(exitItem);
             hddTrayIcon.ContextMenu = contextMenu;
@@ -70,6 +78,7 @@ namespace HddActivity
         //Assigns thread activity and starts the thread.
         private void setUpThread()
         {
+            exitRequested = false;
             hddActivityThread = new Thread(new ThreadStart(hddThreadActivity));
             hddActivityThread.Start();
         }
@@ -80,10 +89,12 @@ namespace HddActivity
          * Disposes the resources and closes the applicaton
          * when "Exit" button ,in the context menu, is clicked.
         */
-        
+
         private void exitItem_Click(object sender, EventArgs e)
         {
-            hddActivityThread.Abort();
+            exitRequested = true;
+            // Wait for HDD activity thread to exit, with a timeout
+            hddActivityThread.Join(TimeSpan.FromSeconds(1));
             hddTrayIcon.Dispose();
             this.Close();
         }
@@ -92,8 +103,7 @@ namespace HddActivity
         #region Activity Threads
         private void hddThreadActivity()
         {
-            ManagementClass physicalDriveData = new ManagementClass("Win32_PerfFormattedData_PerfDisk_PhysicalDisk");
-            try
+            using (ManagementClass physicalDriveData = new ManagementClass("Win32_PerfFormattedData_PerfDisk_PhysicalDisk"))
             {
                 //Using WMI to get physical disk activity per second.
                 while (true)
@@ -113,26 +123,37 @@ namespace HddActivity
                             //Getting the DiskBytesPersec property
                             //unsigned 64bit intenger,return value needs to be converted.
 
-                           if (Convert.ToUInt64(obj["DIskBytesPersec"]) > 0)
+                            if (Convert.ToUInt64(obj["DIskBytesPersec"]) > 0)
                             {
-                               //Show busy icon.
-                                hddTrayIcon.Icon = busyIcon;
+                                if (previousHddState == HddState.Idle)
+                                {
+                                    //Show busy icon.
+                                    hddTrayIcon.Icon = busyIcon;
+                                }
+                                previousHddState = HddState.Busy;
                             }
                             else
                             {
-                               //Show idle icon.
-                                hddTrayIcon.Icon = idleIcon;
+                                if (previousHddState == HddState.Busy)
+                                {
+                                    //Show idle icon.
+                                    hddTrayIcon.Icon = idleIcon;
+                                }
+                                previousHddState = HddState.Idle;
                             }
                         }
                     }
-                    //Sleep for 10th of a second
-                    Thread.Sleep(100);
+
+                    if (exitRequested)
+                    {
+                        return;
+                    }
+                    else
+                    {
+                        //Sleep for 10th of a second
+                        Thread.Sleep(100);
+                    }
                 }
-            }
-            catch (ThreadAbortException tae)  
-            {
-                //Thread aborted
-                physicalDriveData.Dispose();
             }
         }
         #endregion
